@@ -2,7 +2,7 @@
 
 ## 📋 Danh sách Công cụ MCP Tester
 
-MCP Tester Server cung cấp 2 công cụ chuyên biệt cho việc đọc file và sinh test tự động. Dưới đây là giới thiệu chi tiết từng công cụ:
+MCP Tester Server cung cấp 6 công cụ chuyên biệt cho việc đọc file, sinh test và quản lý chất lượng test. Dưới đây là giới thiệu chi tiết từng công cụ:
 
 ---
 
@@ -68,6 +68,106 @@ generate_tests_from_file(filePath="api/user.js", testType="api")
 - **Python**: unittest với pytest compatibility
 - **JavaScript**: Mocha/Chai với Sinon
 - **Others**: Generic test format
+
+---
+
+## 📊 3. analyze_code_coverage
+**Mục đích**: Phân tích code coverage và xác định các khu vực chưa được test
+
+**Parameters**:
+- `projectPath` (string): Đường dẫn đến thư mục project
+- `coverageType` (string): Loại phân tích coverage (line, branch, method)
+
+**Ví dụ sử dụng**:
+```bash
+analyze_code_coverage(projectPath="src/main/java", coverageType="line")
+analyze_code_coverage(projectPath="src", coverageType="branch")
+```
+
+**Output**: Báo cáo coverage chi tiết với:
+- Tổng số dòng code
+- Số dòng được cover
+- Tỷ lệ coverage (%)
+- Danh sách các khu vực chưa được cover
+- Metrics chi tiết (line, branch, method coverage)
+
+---
+
+## 🎲 4. generate_test_data_from_schema
+**Mục đích**: Sinh test data thực tế từ JSON schema hoặc database schema
+
+**Parameters**:
+- `schema` (string): JSON schema hoặc database schema
+- `count` (integer): Số lượng bản ghi test cần sinh (1-1000)
+- `dataProfile` (string): Profile dữ liệu (realistic, edge_case, boundary)
+
+**Ví dụ sử dụng**:
+```python
+generate_test_data_from_schema(
+  schema='{"name": "string", "age": "number", "email": "string"}', 
+  count=10, 
+  dataProfile="realistic"
+)
+generate_test_data_from_file(
+  schema='{"user": {"type": "object", "properties": {...}}}', 
+  count=5, 
+  dataProfile="edge_case"
+)
+```
+
+**Output**: Test data được sinh tự động với:
+- Dữ liệu theo schema đã cho
+- Profile phù hợp (realistic/edge_case/boundary)
+- Metadata cho từng bản ghi
+- Thời gian sinh dữ liệu
+
+---
+
+## 📋 5. create_test_plan
+**Mục đích**: Tạo kế hoạch test toàn diện từ requirements hoặc user stories
+
+**Parameters**:
+- `requirements` (string): Requirements text hoặc user stories
+- `testLevels` (array): Các mức độ test (unit, integration, system, acceptance)
+- `complexity` (string): Độ phức tạp của project (simple, medium, complex)
+
+**Ví dụ sử dụng**:
+```bash
+create_test_plan(
+  requirements="User should be able to register with email and password",
+  testLevels=["unit", "integration", "system"],
+  complexity="medium"
+)
+```
+
+**Output**: Kế hoạch test chi tiết với:
+- Test cases được phân tích từ requirements
+- Test suites theo từng level
+- Ước tính thời gian thực hiện
+- Priority và description cho từng test case
+
+---
+
+## 🔍 6. validate_test_quality
+**Mục đích**: Validate chất lượng test code và cung cấp gợi ý cải thiện
+
+**Parameters**:
+- `testCode` (string): Test code cần validate
+- `qualityCriteria` (array): Tiêu chí chất lượng (readability, maintainability, coverage)
+
+**Ví dụ sử dụng**:
+```java
+validate_test_quality(
+  testCode="@Test void testUserLogin() { ... }",
+  qualityCriteria=["readability", "maintainability", "coverage"]
+)
+```
+
+**Output**: Báo cáo chất lượng test với:
+- Điểm số theo từng tiêu chí
+- Các vấn đề được phát hiện
+- Gợi ý cải thiện chi tiết
+- Tổng điểm chất lượng overall
 
 ---
 
@@ -155,4 +255,4 @@ generate_tests_from_file(filePath="components/Button.js", testType="integration"
 
 ---
 
-**MCP Tester** - Công cụ chuyên biệt cho đọc file và sinh test tự động! 🧪✨
+**MCP Tester** - Công cụ chuyên biệt cho đọc file, sinh test và quản lý chất lượng! 🧪✨

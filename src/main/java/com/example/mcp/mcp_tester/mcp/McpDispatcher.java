@@ -54,7 +54,7 @@ public class McpDispatcher {
                 "inputSchema", Map.of(
                     "type", "object",
                     "properties", Map.of(
-                        "filePath", Map.of("type", "string", "description", "Path to the file to read")
+                        "filePath", Map.of("type", "string", "description", "Path to file to read")
                     ),
                     "required", Arrays.asList("filePath")
                 )
@@ -65,10 +65,60 @@ public class McpDispatcher {
                 "inputSchema", Map.of(
                     "type", "object",
                     "properties", Map.of(
-                        "filePath", Map.of("type", "string", "description", "Path to the source file"),
+                        "filePath", Map.of("type", "string", "description", "Path to source file"),
                         "testType", Map.of("type", "string", "description", "Type of tests to generate (unit, integration, api, validation, performance, generic)")
                     ),
                     "required", Arrays.asList("filePath", "testType")
+                )
+            ),
+            Map.of(
+                "name", "analyze_code_coverage",
+                "description", "Analyze code coverage and identify untested areas",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "projectPath", Map.of("type", "string", "description", "Path to project directory"),
+                        "coverageType", Map.of("type", "string", "description", "Coverage analysis type (line, branch, method)")
+                    ),
+                    "required", Arrays.asList("projectPath")
+                )
+            ),
+            Map.of(
+                "name", "generate_test_data_from_schema",
+                "description", "Generate realistic test data from JSON schema or database schema",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "schema", Map.of("type", "string", "description", "JSON schema or database schema"),
+                        "count", Map.of("type", "integer", "description", "Number of test records to generate"),
+                        "dataProfile", Map.of("type", "string", "description", "Data profile (realistic, edge_case, boundary)")
+                    ),
+                    "required", Arrays.asList("schema", "count")
+                )
+            ),
+            Map.of(
+                "name", "create_test_plan",
+                "description", "Create comprehensive test plan from requirements or user stories",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "requirements", Map.of("type", "string", "description", "Requirements text or user stories"),
+                        "testLevels", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Test levels (unit, integration, system, acceptance)"),
+                        "complexity", Map.of("type", "string", "description", "Project complexity (simple, medium, complex)")
+                    ),
+                    "required", Arrays.asList("requirements")
+                )
+            ),
+            Map.of(
+                "name", "validate_test_quality",
+                "description", "Validate test quality and provide improvement suggestions",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "testCode", Map.of("type", "string", "description", "Test code to validate"),
+                        "qualityCriteria", Map.of("type", "array", "items", Map.of("type", "string"), "description", "Quality criteria (readability, maintainability, coverage)")
+                    ),
+                    "required", Arrays.asList("testCode")
                 )
             )
         );
@@ -94,6 +144,30 @@ public class McpDispatcher {
                 String testFilePath = (String) arguments.get("filePath");
                 String testType = (String) arguments.get("testType");
                 result = testingService.generateTestsFromFile(testFilePath, testType);
+                break;
+            case "analyze_code_coverage":
+                String projectPath = (String) arguments.get("projectPath");
+                String coverageType = (String) arguments.get("coverageType");
+                result = testingService.analyzeCodeCoverage(projectPath, coverageType);
+                break;
+            case "generate_test_data_from_schema":
+                String schema = (String) arguments.get("schema");
+                Integer count = (Integer) arguments.get("count");
+                String dataProfile = (String) arguments.get("dataProfile");
+                result = testingService.generateTestDataFromSchema(schema, count, dataProfile);
+                break;
+            case "create_test_plan":
+                String requirements = (String) arguments.get("requirements");
+                @SuppressWarnings("unchecked")
+                List<String> testLevels = (List<String>) arguments.get("testLevels");
+                String complexity = (String) arguments.get("complexity");
+                result = testingService.createTestPlan(requirements, testLevels, complexity);
+                break;
+            case "validate_test_quality":
+                String testCode = (String) arguments.get("testCode");
+                @SuppressWarnings("unchecked")
+                List<String> qualityCriteria = (List<String>) arguments.get("qualityCriteria");
+                result = testingService.validateTestQuality(testCode, qualityCriteria);
                 break;
             default:
                 return JsonRpcResponse.error(request.id, -32601, "Unknown tool: " + name);
