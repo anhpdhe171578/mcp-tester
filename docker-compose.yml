@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mcp-tester:
+    build: .
+    container_name: mcp-tester-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - MCP_TESTER_STORAGE_LIMIT=1000
+      - MCP_TESTER_HISTORY_LIMIT=100
+      - MCP_TESTER_MAX_ITERATIONS=100000
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      # Mount logs directory (optional)
+      - ./logs:/app/logs
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "java", "-jar", "app.jar", "--health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add a simple web interface for testing
+  mcp-tester-web:
+    image: nginx:alpine
+    container_name: mcp-tester-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    depends_on:
+      - mcp-tester
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local

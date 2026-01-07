@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mcp-tester": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "C:\\Users\\anh65\\CascadeProjects\\mcp-tester\\target\\mcp-tester-1.0.0.jar"
+      ],
+      "env": {}
+    }
+  }
+}
