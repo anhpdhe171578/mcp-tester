@@ -6,6 +6,10 @@ import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 public class TestingService {
     
@@ -666,5 +670,905 @@ public class TestingService {
             logOperation("performanceTest", params, errorResult);
             return errorResult;
         }
+    }
+    
+    // Read file content for analysis
+    public Map<String, Object> readFile(String filePath) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("filePath", filePath);
+        
+        // Input validation
+        if (filePath == null || filePath.trim().isEmpty()) {
+            Map<String, Object> result = createErrorResult("readFile", "File path cannot be null or empty", "filePath");
+            logOperation("readFile", params, result);
+            return result;
+        }
+        
+        // Security check - prevent path traversal
+        Path path = Paths.get(filePath).normalize();
+        if (path.toString().contains("..")) {
+            Map<String, Object> result = createErrorResult("readFile", "Path traversal not allowed", "filePath");
+            logOperation("readFile", params, result);
+            return result;
+        }
+        
+        try {
+            if (!Files.exists(path)) {
+                Map<String, Object> result = createErrorResult("readFile", "File not found: " + filePath, "filePath");
+                logOperation("readFile", params, result);
+                return result;
+            }
+            
+            if (!Files.isReadable(path)) {
+                Map<String, Object> result = createErrorResult("readFile", "File not readable: " + filePath, "filePath");
+                logOperation("readFile", params, result);
+                return result;
+            }
+            
+            // Limit file size to prevent memory issues (5MB max)
+            long fileSize = Files.size(path);
+            if (fileSize > 5 * 1024 * 1024) {
+                Map<String, Object> result = createErrorResult("readFile", "File too large (max 5MB): " + filePath, "filePath");
+                logOperation("readFile", params, result);
+                return result;
+            }
+            
+            String content = Files.readString(path, StandardCharsets.UTF_8);
+            String fileName = path.getFileName().toString();
+            String fileExtension = getFileExtension(fileName);
+            
+            // Get file metadata
+            BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+            
+            Map<String, Object> data = new HashMap<>();
+            data.put("filePath", filePath);
+            data.put("fileName", fileName);
+            data.put("fileExtension", fileExtension);
+            data.put("fileSize", fileSize);
+            data.put("content", content);
+            data.put("lineCount", content.split("\n").length);
+            data.put("characterCount", content.length());
+            data.put("lastModified", attrs.lastModifiedTime().toString());
+            data.put("isDirectory", attrs.isDirectory());
+            data.put("isRegularFile", attrs.isRegularFile());
+            
+            Map<String, Object> result = createSuccessResult("readFile", data);
+            logOperation("readFile", params, result);
+            return result;
+            
+        } catch (IOException e) {
+            Map<String, Object> errorResult = createErrorResult("readFile", "Failed to read file: " + e.getMessage(), "filePath");
+            logOperation("readFile", params, errorResult);
+            return errorResult;
+        } catch (Exception e) {
+            Map<String, Object> errorResult = createErrorResult("readFile", "Unexpected error: " + e.getMessage(), "filePath");
+            logOperation("readFile", params, errorResult);
+            return errorResult;
+        }
+    }
+    
+    // Analyze file and generate test cases
+    public Map<String, Object> generateTestsFromFile(String filePath, String testType) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("filePath", filePath);
+        params.put("testType", testType);
+        
+        // Input validation
+        if (filePath == null || filePath.trim().isEmpty()) {
+            Map<String, Object> result = createErrorResult("generateTestsFromFile", "File path cannot be null or empty", "filePath");
+            logOperation("generateTestsFromFile", params, result);
+            return result;
+        }
+        
+        if (testType == null || testType.trim().isEmpty()) {
+            Map<String, Object> result = createErrorResult("generateTestsFromFile", "Test type cannot be null or empty", "testType");
+            logOperation("generateTestsFromFile", params, result);
+            return result;
+        }
+        
+        try {
+            // First read the file
+            Map<String, Object> fileResult = readFile(filePath);
+            if (!(Boolean) fileResult.get("success")) {
+                Map<String, Object> result = createErrorResult("generateTestsFromFile", "Failed to read file: " + fileResult.get("error"));
+                logOperation("generateTestsFromFile", params, result);
+                return result;
+            }
+            
+            @SuppressWarnings("unchecked")
+            Map<String, Object> fileData = (Map<String, Object>) fileResult.get("data");
+            String content = (String) fileData.get("content");
+            String fileName = (String) fileData.get("fileName");
+            String fileExtension = (String) fileData.get("fileExtension");
+            
+            // Generate tests based on file type and test type
+            Map<String, Object> testData = new HashMap<>();
+            List<Map<String, Object>> testCases = new ArrayList<>();
+            
+            switch (testType.toLowerCase()) {
+                case "unit":
+                    testCases = generateUnitTests(fileName, fileExtension, content);
+                    break;
+                case "integration":
+                    testCases = generateIntegrationTests(fileName, fileExtension, content);
+                    break;
+                case "api":
+                    testCases = generateApiTests(fileName, fileExtension, content);
+                    break;
+                case "validation":
+                    testCases = generateValidationTests(fileName, fileExtension, content);
+                    break;
+                case "performance":
+                    testCases = generatePerformanceTests(fileName, fileExtension, content);
+                    break;
+                default:
+                    testCases = generateGenericTests(fileName, fileExtension, content);
+            }
+            
+            testData.put("fileName", fileName);
+            testData.put("fileExtension", fileExtension);
+            testData.put("testType", testType);
+            testData.put("testCases", testCases);
+            testData.put("totalTests", testCases.size());
+            testData.put("generatedAt", LocalDateTime.now().format(formatter));
+            
+            // Generate test code
+            String testCode = generateTestCode(fileName, fileExtension, testType, testCases);
+            testData.put("testCode", testCode);
+            
+            Map<String, Object> result = createSuccessResult("generateTestsFromFile", testData);
+            logOperation("generateTestsFromFile", params, result);
+            return result;
+            
+        } catch (Exception e) {
+            Map<String, Object> errorResult = createErrorResult("generateTestsFromFile", "Test generation failed: " + e.getMessage());
+            logOperation("generateTestsFromFile", params, errorResult);
+            return errorResult;
+        }
+    }
+    
+    private List<Map<String, Object>> generateUnitTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // Analyze content for patterns
+        String[] lines = content.split("\n");
+        
+        // Look for functions/methods with better detection
+        if (isJavaFile(fileExtension) || isPythonFile(fileExtension) || isJavaScriptFile(fileExtension)) {
+            List<Map<String, Object>> functions = extractFunctions(fileName, fileExtension, content);
+            
+            for (Map<String, Object> function : functions) {
+                String methodName = (String) function.get("name");
+                Integer lineNumber = (Integer) function.get("lineNumber");
+                @SuppressWarnings("unchecked")
+                List<String> parameters = (List<String>) function.get("parameters");
+                String returnType = (String) function.get("returnType");
+                
+                // Generate comprehensive test cases for each function
+                testCases.add(createTestCase(methodName + " should execute with valid inputs", "unit", methodName, 
+                    "Test that " + methodName + " executes correctly with valid parameters", lineNumber));
+                
+                // Add edge case tests based on parameters
+                if (!parameters.isEmpty()) {
+                    testCases.add(createTestCase(methodName + " should handle null/empty parameters", "unit", methodName,
+                        "Test that " + methodName + " handles null or empty parameters gracefully", lineNumber));
+                }
+                
+                // Add return type validation test
+                if (returnType != null && !"void".equals(returnType)) {
+                    testCases.add(createTestCase(methodName + " should return correct type", "unit", methodName,
+                        "Test that " + methodName + " returns expected " + returnType + " type", lineNumber));
+                }
+                
+                // Add exception handling test
+                testCases.add(createTestCase(methodName + " should handle exceptions", "unit", methodName,
+                    "Test that " + methodName + " properly handles exceptions", lineNumber));
+            }
+        }
+        
+        // Add generic file tests
+        testCases.add(createTestCase("File should not be empty", "unit", "file_content_check",
+            "Test that file contains content", 1));
+        testCases.add(createTestCase("File should have valid encoding", "unit", "encoding_check",
+            "Test that file has valid UTF-8 encoding", 1));
+        
+        return testCases;
+    }
+    
+    private List<Map<String, Object>> generateIntegrationTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // File-based integration tests
+        testCases.add(createTestCase("File should be readable", "integration", "file_readability",
+            "Test that file can be read successfully", 1));
+        
+        if (isConfigFile(fileExtension)) {
+            testCases.add(createTestCase("Configuration should be valid", "integration", "config_validation",
+                "Test that configuration file has valid format", 1));
+        }
+        
+        if (isCodeFile(fileExtension)) {
+            testCases.add(createTestCase("Code should be syntactically valid", "integration", "syntax_check",
+                "Test that code has valid syntax", 1));
+        }
+        
+        return testCases;
+    }
+    
+    private List<Map<String, Object>> generateApiTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // Look for API patterns
+        if (content.toLowerCase().contains("@restcontroller") || content.toLowerCase().contains("@app.route")) {
+            testCases.add(createTestCase("API endpoint should respond", "api", "endpoint_response",
+                "Test that API endpoint returns valid response", 1));
+        }
+        
+        if (content.toLowerCase().contains("@getmapping") || content.toLowerCase().contains("methods=['get']")) {
+            testCases.add(createTestCase("GET endpoint should work", "api", "get_endpoint",
+                "Test that GET endpoint returns 200", 1));
+        }
+        
+        if (content.toLowerCase().contains("@postmapping") || content.toLowerCase().contains("methods=['post']")) {
+            testCases.add(createTestCase("POST endpoint should work", "api", "post_endpoint",
+                "Test that POST endpoint creates resource", 1));
+        }
+        
+        return testCases;
+    }
+    
+    private List<Map<String, Object>> generateValidationTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // Content validation tests
+        testCases.add(createTestCase("Content should not contain null bytes", "validation", "null_byte_check",
+            "Test that file doesn't contain null bytes", 1));
+        
+        if (isJsonFile(fileExtension)) {
+            testCases.add(createTestCase("JSON should be valid", "validation", "json_validation",
+                "Test that JSON content is valid", 1));
+        }
+        
+        if (isXmlFile(fileExtension)) {
+            testCases.add(createTestCase("XML should be well-formed", "validation", "xml_validation",
+                "Test that XML is well-formed", 1));
+        }
+        
+        return testCases;
+    }
+    
+    private List<Map<String, Object>> generatePerformanceTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // Performance-related tests
+        testCases.add(createTestCase("File should load within time limit", "performance", "load_time",
+            "Test that file loads within acceptable time", 1));
+        
+        if (content.length() > 1000) {
+            testCases.add(createTestCase("Large file should be processed efficiently", "performance", "large_file_processing",
+                "Test that large file is processed efficiently", 1));
+        }
+        
+        return testCases;
+    }
+    
+    private List<Map<String, Object>> generateGenericTests(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> testCases = new ArrayList<>();
+        
+        // Generic tests applicable to all files
+        testCases.add(createTestCase("File should exist", "generic", "file_existence",
+            "Test that file exists at specified path", 1));
+        testCases.add(createTestCase("File should be accessible", "generic", "file_accessibility",
+            "Test that file is accessible for reading", 1));
+        testCases.add(createTestCase("File size should be reasonable", "generic", "file_size_check",
+            "Test that file size is within expected bounds", 1));
+        
+        return testCases;
+    }
+    
+    private Map<String, Object> createTestCase(String name, String type, String target, String description, int lineNumber) {
+        Map<String, Object> testCase = new HashMap<>();
+        testCase.put("name", name);
+        testCase.put("type", type);
+        testCase.put("target", target);
+        testCase.put("description", description);
+        testCase.put("lineNumber", lineNumber);
+        testCase.put("priority", "medium");
+        testCase.put("status", "pending");
+        testCase.put("createdAt", LocalDateTime.now().format(formatter));
+        return testCase;
+    }
+    
+    private String generateTestCode(String fileName, String fileExtension, String testType, List<Map<String, Object>> testCases) {
+        StringBuilder code = new StringBuilder();
+        
+        if (isJavaFile(fileExtension)) {
+            code.append(generateJavaTestCode(fileName, testType, testCases));
+        } else if (isPythonFile(fileExtension)) {
+            code.append(generatePythonTestCode(fileName, testType, testCases));
+        } else if (isJavaScriptFile(fileExtension)) {
+            code.append(generateJSTestCode(fileName, testType, testCases));
+        } else {
+            code.append(generateGenericTestCode(fileName, testType, testCases));
+        }
+        
+        return code.toString();
+    }
+    
+    private String generateJavaTestCode(String fileName, String testType, List<Map<String, Object>> testCases) {
+        StringBuilder code = new StringBuilder();
+        String className = fileName.replace(".java", "").replace("-", "").replace("_", "");
+        
+        code.append("// Auto-generated tests for ").append(fileName).append("\n");
+        code.append("import org.junit.jupiter.api.*;
+");
+        code.append("import org.mockito.*;
+");
+        code.append("import static org.junit.jupiter.api.Assertions.*;
+");
+        code.append("import static org.mockito.Mockito.*;
+\n");
+        
+        code.append("public class ").append(className).append("Test {\n\n");
+        
+        // Group tests by target method
+        Map<String, List<Map<String, Object>>> testsByMethod = new HashMap<>();
+        for (Map<String, Object> testCase : testCases) {
+            String target = (String) testCase.get("target");
+            testsByMethod.computeIfAbsent(target, k -> new ArrayList<>()).add(testCase);
+        }
+        
+        for (Map.Entry<String, List<Map<String, Object>>> entry : testsByMethod.entrySet()) {
+            String methodName = entry.getKey();
+            List<Map<String, Object>> methodTests = entry.getValue();
+            
+            if (!"file_content_check".equals(methodName) && !"encoding_check".equals(methodName)) {
+                code.append("    // Tests for ").append(methodName).append("\n");
+                
+                for (Map<String, Object> testCase : methodTests) {
+                    String testName = ((String) testCase.get("name")).replaceAll("[^a-zA-Z0-9_]", "_");
+                    String description = (String) testCase.get("description");
+                    
+                    code.append("    @Test\n");
+                    code.append("    void ").append(testName).append("() {\n");
+                    code.append("        // ").append(description).append("\n");
+                    
+                    // Generate specific test logic based on test type
+                    if (testName.contains("valid_inputs")) {
+                        code.append("        // TODO: Arrange valid test data\n");
+                        code.append("        // TODO: Act - call the method\n");
+                        code.append("        // TODO: Assert - verify results\n");
+                        code.append("        assertTrue(true, \"Test not implemented yet\");\n");
+                    } else if (testName.contains("null_empty")) {
+                        code.append("        // TODO: Test with null parameters\n");
+                        code.append("        // TODO: Test with empty parameters\n");
+                        code.append("        // TODO: Verify graceful handling\n");
+                        code.append("        assertDoesNotThrow(() -> {\n");
+                        code.append("            // TODO: Implement null/empty parameter test\n");
+                        code.append("        });\n");
+                    } else if (testName.contains("return_correct_type")) {
+                        code.append("        // TODO: Test return type validation\n");
+                        code.append("        // TODO: Verify returned value type\n");
+                        code.append("        assertNotNull(result, \"Result should not be null\");\n");
+                    } else if (testName.contains("exceptions")) {
+                        code.append("        // TODO: Test exception scenarios\n");
+                        code.append("        // TODO: Verify proper exception handling\n");
+                        code.append("        assertDoesNotThrow(() -> {\n");
+                        code.append("            // TODO: Implement exception test\n");
+                        code.append("        });\n");
+                    } else {
+                        code.append("        // TODO: Implement test logic\n");
+                        code.append("        assertTrue(true, \"Test not implemented yet\");\n");
+                    }
+                    
+                    code.append("    }\n\n");
+                }
+            }
+        }
+        
+        // Add generic file tests
+        code.append("    // File-level tests\n");
+        code.append("    @Test\n");
+        code.append("    void file_should_not_be_empty() {\n");
+        code.append("        // Test that file contains content\n");
+        code.append("        assertNotNull(getClass().getResourceAsStream(\"/\" + \"").append(fileName).append("\"), \"File should exist\");\n");
+        code.append("    }\n\n");
+        
+        code.append("    @Test\n");
+        code.append("    void file_should_have_valid_encoding() {\n");
+        code.append("        // Test that file has valid UTF-8 encoding\n");
+        code.append("        // TODO: Implement encoding validation\n");
+        code.append("        assertTrue(true, \"Encoding test not implemented yet\");\n");
+        code.append("    }\n\n");
+        
+        code.append("}\n");
+        return code.toString();
+    }
+    
+    private String generatePythonTestCode(String fileName, String testType, List<Map<String, Object>> testCases) {
+        StringBuilder code = new StringBuilder();
+        
+        code.append("# Auto-generated tests for ").append(fileName).append("\n");
+        code.append("import unittest\n");
+        code.append("import pytest\n");
+        code.append("from unittest.mock import patch, MagicMock\n\n");
+        
+        String className = fileName.replace(".", "").replace("-", "").replace("_", "").toUpperCase();
+        code.append("class Test").append(className).append("(unittest.TestCase):\n\n");
+        
+        // Group tests by target method
+        Map<String, List<Map<String, Object>>> testsByMethod = new HashMap<>();
+        for (Map<String, Object> testCase : testCases) {
+            String target = (String) testCase.get("target");
+            testsByMethod.computeIfAbsent(target, k -> new ArrayList<>()).add(testCase);
+        }
+        
+        for (Map.Entry<String, List<Map<String, Object>>> entry : testsByMethod.entrySet()) {
+            String methodName = entry.getKey();
+            List<Map<String, Object>> methodTests = entry.getValue();
+            
+            if (!"file_content_check".equals(methodName) && !"encoding_check".equals(methodName)) {
+                code.append("    # Tests for ").append(methodName).append("\n");
+                
+                for (Map<String, Object> testCase : methodTests) {
+                    String testName = ((String) testCase.get("name")).replaceAll("[^a-zA-Z0-9_]", "_");
+                    String description = (String) testCase.get("description");
+                    
+                    code.append("    def test_").append(testName.toLowerCase()).append("(self):\n");
+                    code.append("        # ").append(description).append("\n");
+                    
+                    // Generate specific test logic based on test type
+                    if (testName.contains("valid_inputs")) {
+                        code.append("        # TODO: Arrange valid test data\n");
+                        code.append("        # TODO: Act - call the function\n");
+                        code.append("        # TODO: Assert - verify results\n");
+                        code.append("        self.assertTrue(True, \"Test not implemented yet\")\n");
+                    } else if (testName.contains("null_empty")) {
+                        code.append("        # TODO: Test with None parameters\n");
+                        code.append("        # TODO: Test with empty parameters\n");
+                        code.append("        # TODO: Verify graceful handling\n");
+                        code.append("        with self.assertRaises(Exception):\n");
+                        code.append("            # TODO: Implement None/empty parameter test\n");
+                        code.append("            pass\n");
+                    } else if (testName.contains("return_correct_type")) {
+                        code.append("        # TODO: Test return type validation\n");
+                        code.append("        # TODO: Verify returned value type\n");
+                        code.append("        self.assertIsNotNone(result, \"Result should not be None\")\n");
+                    } else if (testName.contains("exceptions")) {
+                        code.append("        # TODO: Test exception scenarios\n");
+                        code.append("        # TODO: Verify proper exception handling\n");
+                        code.append("        with self.assertRaises(Exception):\n");
+                        code.append("            # TODO: Implement exception test\n");
+                        code.append("            pass\n");
+                    } else {
+                        code.append("        # TODO: Implement test logic\n");
+                        code.append("        self.assertTrue(True, \"Test not implemented yet\")\n");
+                    }
+                    
+                    code.append("\n");
+                }
+            }
+        }
+        
+        // Add generic file tests
+        code.append("    # File-level tests\n");
+        code.append("    def test_file_should_not_be_empty(self):\n");
+        code.append("        # Test that file contains content\n");
+        code.append("        with open(\"").append(fileName).append("\", 'r') as f:\n");
+        code.append("            content = f.read()\n");
+        code.append("            self.assertGreater(len(content), 0, \"File should not be empty\")\n\n");
+        
+        code.append("    def test_file_should_have_valid_encoding(self):\n");
+        code.append("        # Test that file has valid UTF-8 encoding\n");
+        code.append("        # TODO: Implement encoding validation\n");
+        code.append("        self.assertTrue(True, \"Encoding test not implemented yet\")\n\n");
+        
+        code.append("\nif __name__ == '__main__':\n");
+        code.append("    unittest.main()\n");
+        return code.toString();
+    }
+    
+    private String generateJSTestCode(String fileName, String testType, List<Map<String, Object>> testCases) {
+        StringBuilder code = new StringBuilder();
+        
+        code.append("// Auto-generated tests for ").append(fileName).append("\n");
+        code.append("const assert = require('assert');");
+        code.append("const sinon = require('sinon');\n\n");
+        
+        code.append("describe('").append(fileName).append("', () => {\n");
+        
+        // Group tests by target method
+        Map<String, List<Map<String, Object>>> testsByMethod = new HashMap<>();
+        for (Map<String, Object> testCase : testCases) {
+            String target = (String) testCase.get("target");
+            testsByMethod.computeIfAbsent(target, k -> new ArrayList<>()).add(testCase);
+        }
+        
+        for (Map.Entry<String, List<Map<String, Object>>> entry : testsByMethod.entrySet()) {
+            String methodName = entry.getKey();
+            List<Map<String, Object>> methodTests = entry.getValue();
+            
+            if (!"file_content_check".equals(methodName) && !"encoding_check".equals(methodName)) {
+                code.append("    // Tests for ").append(methodName).append("\n");
+                
+                for (Map<String, Object> testCase : methodTests) {
+                    String testName = (String) testCase.get("name");
+                    String description = (String) testCase.get("description");
+                    
+                    code.append("    it('").append(testName).append("', () => {\n");
+                    code.append("        // ").append(description).append("\n");
+                    
+                    // Generate specific test logic based on test type
+                    if (testName.contains("valid_inputs")) {
+                        code.append("        // TODO: Arrange valid test data\n");
+                        code.append("        // TODO: Act - call the function\n");
+                        code.append("        // TODO: Assert - verify results\n");
+                        code.append("        assert(true, 'Test not implemented yet');\n");
+                    } else if (testName.contains("null_empty")) {
+                        code.append("        // TODO: Test with null/undefined parameters\n");
+                        code.append("        // TODO: Test with empty parameters\n");
+                        code.append("        // TODO: Verify graceful handling\n");
+                        code.append("        assert.doesNotThrow(() => {\n");
+                        code.append("            // TODO: Implement null/empty parameter test\n");
+                        code.append("        });\n");
+                    } else if (testName.contains("return_correct_type")) {
+                        code.append("        // TODO: Test return type validation\n");
+                        code.append("        // TODO: Verify returned value type\n");
+                        code.append("        assert.notEqual(result, undefined, 'Result should not be undefined');\n");
+                    } else if (testName.contains("exceptions")) {
+                        code.append("        // TODO: Test exception scenarios\n");
+                        code.append("        // TODO: Verify proper exception handling\n");
+                        code.append("        assert.throws(() => {\n");
+                        code.append("            // TODO: Implement exception test\n");
+                        code.append("        });\n");
+                    } else {
+                        code.append("        // TODO: Implement test logic\n");
+                        code.append("        assert(true, 'Test not implemented yet');\n");
+                    }
+                    
+                    code.append("    });\n\n");
+                }
+            }
+        }
+        
+        // Add generic file tests
+        code.append("    // File-level tests\n");
+        code.append("    it('File should not be empty', () => {\n");
+        code.append("        // Test that file contains content\n");
+        code.append("        const fs = require('fs');\n");
+        code.append("        const content = fs.readFileSync('"").append(fileName).append("', 'utf8');\n");
+        code.append("        assert(content.length > 0, 'File should not be empty');\n");
+        code.append("    });\n\n");
+        
+        code.append("    it('File should have valid encoding', () => {\n");
+        code.append("        // Test that file has valid UTF-8 encoding\n");
+        code.append("        // TODO: Implement encoding validation\n");
+        code.append("        assert(true, 'Encoding test not implemented yet');\n");
+        code.append("    });\n");
+        
+        code.append("});\n");
+        return code.toString();
+    }
+    
+    private String generateGenericTestCode(String fileName, String testType, List<Map<String, Object>> testCases) {
+        StringBuilder code = new StringBuilder();
+        
+        code.append("# Auto-generated tests for ").append(fileName).append("\n");
+        code.append("# Test Type: ").append(testType).append("\n\n");
+        
+        for (Map<String, Object> testCase : testCases) {
+            code.append("Test: ").append(testCase.get("name")).append("\n");
+            code.append("Description: ").append(testCase.get("description")).append("\n");
+            code.append("Type: ").append(testCase.get("type")).append("\n");
+            code.append("Target: ").append(testCase.get("target")).append("\n");
+            code.append("Line: ").append(testCase.get("lineNumber")).append("\n");
+            code.append("Status: ").append(testCase.get("status")).append("\n");
+            code.append("---\n\n");
+        }
+        
+        return code.toString();
+    }
+    
+    // Enhanced function extraction methods
+    private List<Map<String, Object>> extractFunctions(String fileName, String fileExtension, String content) {
+        List<Map<String, Object>> functions = new ArrayList<>();
+        String[] lines = content.split("\n");
+        
+        if (isJavaFile(fileExtension)) {
+            functions.addAll(extractJavaFunctions(lines));
+        } else if (isPythonFile(fileExtension)) {
+            functions.addAll(extractPythonFunctions(lines));
+        } else if (isJavaScriptFile(fileExtension)) {
+            functions.addAll(extractJSFunctions(lines));
+        }
+        
+        return functions;
+    }
+    
+    private List<Map<String, Object>> extractJavaFunctions(String[] lines) {
+        List<Map<String, Object>> functions = new ArrayList<>();
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            
+            // Skip comments and empty lines
+            if (line.startsWith("//") || line.startsWith("/*") || line.startsWith("*") || line.isEmpty()) {
+                continue;
+            }
+            
+            // Look for method signatures with better regex
+            if ((line.contains("public ") || line.contains("private ") || line.contains("protected ") || 
+                 line.contains("static ") || line.contains("final ") || line.contains("synchronized")) && 
+                line.contains("(") && line.contains(")") && (line.contains(";") == false)) {
+                
+                Map<String, Object> function = parseJavaMethodSignature(line, i + 1);
+                if (function != null) {
+                    functions.add(function);
+                }
+            }
+        }
+        
+        return functions;
+    }
+    
+    private List<Map<String, Object>> extractPythonFunctions(String[] lines) {
+        List<Map<String, Object>> functions = new ArrayList<>();
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            
+            // Skip comments and empty lines
+            if (line.startsWith("#") || line.isEmpty()) {
+                continue;
+            }
+            
+            // Look for function definitions
+            if (line.startsWith("def ") && line.contains("(") && line.contains("):")) {
+                Map<String, Object> function = parsePythonFunctionSignature(line, i + 1);
+                if (function != null) {
+                    functions.add(function);
+                }
+            }
+        }
+        
+        return functions;
+    }
+    
+    private List<Map<String, Object>> extractJSFunctions(String[] lines) {
+        List<Map<String, Object>> functions = new ArrayList<>();
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            
+            // Skip comments and empty lines
+            if (line.startsWith("//") || line.startsWith("/*") || line.startsWith("*") || line.isEmpty()) {
+                continue;
+            }
+            
+            // Look for function declarations and arrow functions
+            if ((line.contains("function ") || line.contains("=>") || line.contains("= function")) && 
+                line.contains("(") && line.contains(")")) {
+                Map<String, Object> function = parseJSFunctionSignature(line, i + 1);
+                if (function != null) {
+                    functions.add(function);
+                }
+            }
+        }
+        
+        return functions;
+    }
+    
+    private Map<String, Object> parseJavaMethodSignature(String line, int lineNumber) {
+        try {
+            // Remove access modifiers and other keywords
+            String cleanLine = line.replaceAll("\b(public|private|protected|static|final|synchronized|native|abstract)\b", "").trim();
+            
+            // Extract return type and method name
+            String[] parts = cleanLine.split("\\s+", 3);
+            if (parts.length < 2) return null;
+            
+            String returnType = parts[0];
+            String methodNameAndParams = parts[1];
+            
+            // Extract method name
+            String methodName = methodNameAndParams.split("\\(")[0];
+            
+            // Extract parameters
+            List<String> parameters = extractJavaParameters(line);
+            
+            Map<String, Object> function = new HashMap<>();
+            function.put("name", methodName);
+            function.put("returnType", returnType);
+            function.put("parameters", parameters);
+            function.put("lineNumber", lineNumber);
+            function.put("language", "java");
+            
+            return function;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    private Map<String, Object> parsePythonFunctionSignature(String line, int lineNumber) {
+        try {
+            // Remove 'def' keyword
+            String cleanLine = line.substring(3).trim();
+            
+            // Extract method name and parameters
+            String methodNameAndParams = cleanLine.split(":")[0];
+            String methodName = methodNameAndParams.split("\\(")[0];
+            
+            // Extract parameters
+            List<String> parameters = extractPythonParameters(cleanLine);
+            
+            // Try to extract return type from type hints
+            String returnType = "void";
+            if (cleanLine.contains("->")) {
+                String[] parts = cleanLine.split("->");
+                if (parts.length > 1) {
+                    returnType = parts[1].split(":")[0].trim();
+                }
+            }
+            
+            Map<String, Object> function = new HashMap<>();
+            function.put("name", methodName);
+            function.put("returnType", returnType);
+            function.put("parameters", parameters);
+            function.put("lineNumber", lineNumber);
+            function.put("language", "python");
+            
+            return function;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    private Map<String, Object> parseJSFunctionSignature(String line, int lineNumber) {
+        try {
+            String methodName = "anonymous";
+            List<String> parameters = new ArrayList<>();
+            
+            if (line.contains("function ")) {
+                // Named function: function name(param1, param2)
+                String afterFunction = line.split("function\\s+")[1];
+                methodName = afterFunction.split("\\(")[0];
+                parameters = extractJSParameters(line);
+            } else if (line.contains("=>")) {
+                // Arrow function: const name = (param1, param2) => {}
+                String[] parts = line.split("=");
+                if (parts.length > 0) {
+                    String leftSide = parts[0].trim();
+                    if (leftSide.contains(" ")) {
+                        methodName = leftSide.split("\\s+")[leftSide.split("\\s+").length - 1];
+                    }
+                }
+                parameters = extractJSParameters(line);
+            }
+            
+            Map<String, Object> function = new HashMap<>();
+            function.put("name", methodName);
+            function.put("returnType", "any");
+            function.put("parameters", parameters);
+            function.put("lineNumber", lineNumber);
+            function.put("language", "javascript");
+            
+            return function;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    
+    private List<String> extractJavaParameters(String line) {
+        List<String> parameters = new ArrayList<>();
+        try {
+            String paramsPart = line.split("\\(")[1].split("\\)")[0];
+            if (!paramsPart.trim().isEmpty()) {
+                String[] params = paramsPart.split(",");
+                for (String param : params) {
+                    param = param.trim();
+                    if (!param.isEmpty()) {
+                        String[] paramParts = param.split("\\s+");
+                        if (paramParts.length >= 2) {
+                            parameters.add(paramParts[paramParts.length - 1]);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignore parameter extraction errors
+        }
+        return parameters;
+    }
+    
+    private List<String> extractPythonParameters(String line) {
+        List<String> parameters = new ArrayList<>();
+        try {
+            String paramsPart = line.split("\\(")[1].split("\\)")[0];
+            if (!paramsPart.trim().isEmpty()) {
+                String[] params = paramsPart.split(",");
+                for (String param : params) {
+                    param = param.trim();
+                    if (!param.isEmpty() && !param.equals("self")) {
+                        // Remove type hints if present
+                        String cleanParam = param.split(":")[0].trim();
+                        if (!cleanParam.isEmpty()) {
+                            parameters.add(cleanParam);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignore parameter extraction errors
+        }
+        return parameters;
+    }
+    
+    private List<String> extractJSParameters(String line) {
+        List<String> parameters = new ArrayList<>();
+        try {
+            String paramsPart = line.split("\\(")[1].split("\\)")[0];
+            if (!paramsPart.trim().isEmpty()) {
+                String[] params = paramsPart.split(",");
+                for (String param : params) {
+                    param = param.trim();
+                    if (!param.isEmpty()) {
+                        parameters.add(param);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignore parameter extraction errors
+        }
+        return parameters;
+    }
+    
+    // Legacy methods for backward compatibility
+    private String extractMethodName(String line) {
+        Map<String, Object> function = parseJavaMethodSignature(line, 0);
+        return function != null ? (String) function.get("name") : null;
+    }
+    
+    private String extractPythonMethodName(String line) {
+        Map<String, Object> function = parsePythonFunctionSignature(line, 0);
+        return function != null ? (String) function.get("name") : null;
+    }
+    
+    private String extractJSMethodName(String line) {
+        Map<String, Object> function = parseJSFunctionSignature(line, 0);
+        return function != null ? (String) function.get("name") : null;
+    }
+    
+    // Helper methods
+    private String getFileExtension(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot > 0 ? fileName.substring(lastDot + 1).toLowerCase() : "";
+    }
+    
+    private boolean isJavaFile(String extension) {
+        return "java".equals(extension);
+    }
+    
+    private boolean isPythonFile(String extension) {
+        return "py".equals(extension);
+    }
+    
+    private boolean isJavaScriptFile(String extension) {
+        return "js".equals(extension) || "jsx".equals(extension) || "ts".equals(extension) || "tsx".equals(extension);
+    }
+    
+    private boolean isJsonFile(String extension) {
+        return "json".equals(extension);
+    }
+    
+    private boolean isXmlFile(String extension) {
+        return "xml".equals(extension) || "xhtml".equals(extension);
+    }
+    
+    private boolean isConfigFile(String extension) {
+        return Arrays.asList("properties", "yml", "yaml", "ini", "conf", "config").contains(extension);
+    }
+    
+    private boolean isCodeFile(String extension) {
+        return Arrays.asList("java", "py", "js", "jsx", "ts", "tsx", "cpp", "c", "h", "cs", "php", "rb", "go", "rs").contains(extension);
     }
 }

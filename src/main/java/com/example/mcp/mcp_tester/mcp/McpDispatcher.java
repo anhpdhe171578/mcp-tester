@@ -167,6 +167,29 @@ public class McpDispatcher {
                     ),
                     "required", Arrays.asList("operation", "iterations")
                 )
+            ),
+            Map.of(
+                "name", "read_file",
+                "description", "Read file content for analysis and test generation",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "filePath", Map.of("type", "string", "description", "Path to the file to read")
+                    ),
+                    "required", Arrays.asList("filePath")
+                )
+            ),
+            Map.of(
+                "name", "generate_tests_from_file",
+                "description", "Automatically generate test cases based on file content",
+                "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "filePath", Map.of("type", "string", "description", "Path to the source file"),
+                        "testType", Map.of("type", "string", "description", "Type of tests to generate (unit, integration, api, validation, performance, generic)")
+                    ),
+                    "required", Arrays.asList("filePath", "testType")
+                )
             )
         );
         
@@ -233,6 +256,15 @@ public class McpDispatcher {
                 String operation = (String) arguments.get("operation");
                 Integer iterations = (Integer) arguments.get("iterations");
                 result = testingService.performanceTest(operation, iterations);
+                break;
+            case "read_file":
+                String filePath = (String) arguments.get("filePath");
+                result = testingService.readFile(filePath);
+                break;
+            case "generate_tests_from_file":
+                String testFilePath = (String) arguments.get("filePath");
+                String testType = (String) arguments.get("testType");
+                result = testingService.generateTestsFromFile(testFilePath, testType);
                 break;
             default:
                 return JsonRpcResponse.error(request.id, -32601, "Unknown tool: " + name);
