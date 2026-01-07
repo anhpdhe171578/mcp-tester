@@ -2,7 +2,7 @@
 
 ## 📋 Danh sách Công cụ MCP Tester
 
-MCP Tester Server cung cấp 12 công cụ testing toàn diện cho AI assistants. Dưới đây là giới thiệu chi tiết từng công cụ:
+MCP Tester Server cung cấp 14 công cụ testing toàn diện cho AI assistants. Dưới đây là giới thiệu chi tiết từng công cụ:
 
 ---
 
@@ -217,6 +217,58 @@ get_operation_history()
 
 ---
 
+## 📁 13. read_file
+**Mục đích**: Đọc nội dung file để phân tích và tạo test
+
+**Parameters**:
+- `filePath` (string): Đường dẫn đến file cần đọc
+
+**Ví dụ sử dụng**:
+```
+read_file(filePath="src/main/java/com/example/MyClass.java")
+read_file(filePath="utils/helper.py")
+read_file(filePath="components/Button.js")
+```
+
+**Output**: File content với metadata (file size, line count, character count, last modified)
+
+---
+
+## 🧪 14. generate_tests_from_file
+**Mục đích**: Tự động sinh test cases từ file source code
+
+**Parameters**:
+- `filePath` (string): Đường dẫn đến file source code
+- `testType` (string): Loại test cần sinh
+  - `unit`: Unit tests cho functions/methods
+  - `integration`: Integration tests cho file-level
+  - `api`: API tests cho endpoints
+  - `validation`: Validation tests cho data
+  - `performance`: Performance tests
+  - `generic`: Generic tests cho tất cả file types
+
+**Ví dụ sử dụng**:
+```
+generate_tests_from_file(filePath="src/main/java/Service.java", testType="unit")
+generate_tests_from_file(filePath="utils/calculator.py", testType="unit")
+generate_tests_from_file(filePath="api/user.js", testType="api")
+```
+
+**Output**: Test cases được sinh tự động với:
+- Phân tích functions/methods trong file
+- Parameters và return types detection
+- Test code theo đúng ngôn ngữ (Java JUnit, Python unittest, JavaScript Mocha)
+- Specific test logic cho từng scenario (valid inputs, null handling, exceptions)
+
+**Features nâng cao**:
+- **Smart Function Detection**: Tự động nhận diện Java methods, Python functions, JavaScript functions
+- **Parameter Analysis**: Trích xuất parameters và return types
+- **Comprehensive Coverage**: Tạo test cho normal cases, edge cases, error cases
+- **Language-specific**: Sinh test code theo chuẩn từng ngôn ngữ
+- **Structured Output**: Test cases được group theo method target
+
+---
+
 ## 🎯 Quy cách sử dụng chung
 
 ### Response Format
@@ -242,6 +294,8 @@ Tất cả tools trả về response theo format chuẩn:
 - History: 100 operations gần nhất
 - Data generation: 1000 items tối đa
 - Performance test: 100000 iterations tối đa
+- File reading: 5MB tối đa per file
+- Test generation: 100 functions tối đa per file
 
 ### Best Practices
 1. **Validation**: Luôn validate input trước khi xử lý
@@ -249,6 +303,9 @@ Tất cả tools trả về response theo format chuẩn:
 3. **Storage**: Sử dụng descriptive keys cho dễ tìm kiếm
 4. **Performance**: Sử dụng limits để tránh overload
 5. **History**: Xem operation history để debug issues
+6. **File Analysis**: Sử dụng `read_file` trước khi `generate_tests_from_file` để preview content
+7. **Test Generation**: Chọn đúng `testType` phù hợp với nhu cầu (unit cho functions, api cho endpoints)
+8. **Code Review**: Luôn review generated test code trước khi sử dụng
 
 ---
 
